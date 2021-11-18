@@ -22,7 +22,7 @@ def save_ssf(dat_file, bsf_file, ssf_file):
     while True:
         current_line = bsf.readline()
         if current_line.startswith('StructDef') is not True:
-            continue
+            pass
         else:
             break
     while True:
@@ -43,18 +43,16 @@ def save_ssf(dat_file, bsf_file, ssf_file):
     offset_bit = 0
     for current_line in bsf_lines_struct:
         if current_line.startswith(';') or current_line.isspace() or current_line.split()[0] == 'Find':
-            continue
+            pass
         elif current_line.split()[0] == 'Find_Ptr_Ref' and current_line.split()[1] == '"BIOS_DATA_BLOCK"':
             initial_offset = dat_raw.find(b'BIOS_DATA_BLOCK') + 16
             dat = BytesIO(dat_raw)
             dat.seek(initial_offset)
             dat_raw = BytesIO(dat.read())
-            continue
         else:
             temp = bsf_line_process_read(current_line, offset_byte, offset_bit, dat_raw, dat_struct)
             offset_byte = temp[0]
             offset_bit = temp[1]
-            continue
     data_type = ['Combo', 'Table', 'EditNum']
     str_type = ['MultiText', 'EditText']
     ssf_raw = []
@@ -72,9 +70,8 @@ def save_ssf(dat_file, bsf_file, ssf_file):
                         skip = True
         elif op[0] == '#ELSE' or op[0] == '#ENDIF':
             skip = False
-            continue
         elif skip:
-            continue
+            pass
         elif op[0] == 'Page':
             ssf_raw.append('\n' + 'PAGE ' + current_line.split('"')[1] + '\n')
         elif op[0] in data_type:
@@ -118,7 +115,7 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
         if not current_line:
             break
         elif current_line.startswith('PAGE') or current_line.isspace():
-            continue
+            pass
         else:
             ssf_lines.append(current_line)
     ssf.close()
@@ -147,7 +144,7 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
     while True:
         current_line = bsf.readline()
         if current_line.startswith('StructDef') is not True:
-            continue
+            pass
         else:
             break
     while True:
@@ -168,23 +165,20 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
     offset_bit = 0
     for current_line in bsf_lines_struct:
         if current_line.startswith(';') or current_line.isspace() or current_line.split()[0] == 'Find':
-            continue
+            pass
         elif current_line.split()[0] == 'Find_Ptr_Ref' and current_line.split()[1] == '"BIOS_DATA_BLOCK"':
             initial_offset = dat_raw.find(b'BIOS_DATA_BLOCK') + 16
             dat = BytesIO(dat_raw)
             dat.seek(initial_offset)
             dat_raw = BytesIO(dat.read())
-            continue
         elif '_Ptr' in current_line.split()[0] or '_Size' in current_line.split()[0]:
             temp = bsf_line_process_read(current_line, offset_byte, offset_bit, dat_raw, dat_struct)
             offset_byte = temp[0]
             offset_bit = temp[1]
-            continue
         else:
             temp = bsf_line_process_write(current_line, offset_byte, offset_bit, dat_raw, dat_struct)
             offset_byte = temp[0]
             offset_bit = temp[1]
-            continue
     for current_line in bsf_lines_page:
         if current_line.startswith(';') or current_line.isspace() or current_line.startswith('$'):
             continue
@@ -202,7 +196,7 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
                             if y.name == x.size:
                                 table_size = int.from_bytes(y.value, byteorder='little', signed=False)
                         if table_ptr == '' and table_size == '':
-                            continue
+                            pass
                         else:
                             dat_raw.seek(table_ptr)
                             dat_temp = b'\x00' * table_size
