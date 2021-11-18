@@ -1,4 +1,4 @@
-from pathlib import Path, PurePath
+from pathlib import Path
 from io import BytesIO
 import argparse
 
