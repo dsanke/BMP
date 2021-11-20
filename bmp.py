@@ -219,7 +219,10 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
             break
         checksum += int.from_bytes(temp, byteorder='little', signed=False)
         checksum &= 0xFF
-    checksum = 0x100 - checksum
+    if checksum == 0:
+        pass
+    else:
+        checksum = 0x100 - checksum
     dat_raw.seek(checksum_offset)
     dat_raw.write(checksum.to_bytes(1, byteorder='little'))
     dat_raw.seek(0)
