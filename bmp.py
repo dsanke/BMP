@@ -117,6 +117,7 @@ def save_ssf(dat_file, bsf_file, ssf_file):
         if current_line.startswith('StructDef') is not True:
             pass
         else:
+            current_line = bsf.readline()
             break
     while True:
         if current_line.startswith('EndStruct'):
@@ -135,7 +136,7 @@ def save_ssf(dat_file, bsf_file, ssf_file):
     offset_byte = 0
     offset_bit = 0
     for current_line in bsf_lines_struct:
-        if current_line.startswith(';') or current_line.isspace() or current_line.split()[0] == 'StructDef' or current_line.split()[0] == 'Find':
+        if current_line.startswith(';') or current_line.isspace() or current_line.split()[0] == 'Find':
             pass
         elif current_line.split()[0] == 'Find_Ptr_Ref' and current_line.split()[1] == '"BIOS_DATA_BLOCK"':
             initial_offset = dat_raw.find(b'BIOS_DATA_BLOCK') + 16
@@ -239,6 +240,7 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
         if current_line.startswith('StructDef') is not True:
             pass
         else:
+            current_line = bsf.readline()
             break
     while True:
         if current_line.startswith('EndStruct'):
@@ -257,7 +259,7 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
     offset_byte = 0
     offset_bit = 0
     for current_line in bsf_lines_struct:
-        if current_line.startswith(';') or current_line.isspace() or current_line.split()[0] == 'StructDef' or current_line.split()[0] == 'Find':
+        if current_line.startswith(';') or current_line.isspace() or current_line.split()[0] == 'Find':
             pass
         elif current_line.split()[0] == 'Find_Ptr_Ref' and current_line.split()[1] == '"BIOS_DATA_BLOCK"':
             initial_offset = dat_raw.find(b'BIOS_DATA_BLOCK') + 16
