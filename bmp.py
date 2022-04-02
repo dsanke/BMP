@@ -62,7 +62,7 @@ def calculate(res):
                     ans = 1
             elif item == '<=':
                 if left <= right:
-                    ans = 0
+                    ans = 1
             elif item == '>':
                 if left > right:
                     ans = 1
