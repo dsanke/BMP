@@ -1,11 +1,11 @@
-from pathlib import Path
+﻿from pathlib import Path
 from io import BytesIO
 import argparse
 
 
 class ssf_dat_struct:
-    def __init__(self, name, value, ptr, size, offset):
-        self.name = name
+
+    def __init__(self, value, ptr, size, offset):
         self.value = value
         self.ptr = ptr
         self.size = size
@@ -15,24 +15,49 @@ class ssf_dat_struct:
 def infix2postfix(op, dat_struct):
     res = []
     stack = ['#']
-    isp = {'==':5,'<':5,'>':5,'!=':5,'<=':5,'>=':5,'||':3,'&&':3,'(':1,')':6,'#':0}
-    icp = {'==':4,'<':4,'>':4,'!=':4,'<=':4,'>=':4,'||':2,'&&':2,'(':6,')':1,'#':0}
+    isp = {
+        '==': 5,
+        '<': 5,
+        '>': 5,
+        '!=': 5,
+        '<=': 5,
+        '>=': 5,
+        '||': 3,
+        '&&': 3,
+        '(': 1,
+        ')': 6,
+        '#': 0
+    }
+    icp = {
+        '==': 4,
+        '<': 4,
+        '>': 4,
+        '!=': 4,
+        '<=': 4,
+        '>=': 4,
+        '||': 2,
+        '&&': 2,
+        '(': 6,
+        ')': 1,
+        '#': 0
+    }
     i = 1
     while i < len(op):
         if op[i].startswith('$'):
-            for x in dat_struct:
-                if x.name == op[i]:
-                    temp_value = int.from_bytes(x.value, byteorder='little', signed=False)
-                    res.append(temp_value)
+            if dat_struct.get(op[i]):
+                temp_value = int.from_bytes(dat_struct[op[i]].value,
+                                            byteorder='little',
+                                            signed=False)
+                res.append(temp_value)
             i += 1
         elif op[i].isdigit() or op[i].startswith('0x'):
             res.append(int(op[i]))
             i += 1
         else:
-            if isp[stack[-1]]<icp[op[i]]:
+            if isp[stack[-1]] < icp[op[i]]:
                 stack.append(op[i])
                 i += 1
-            elif isp[stack[-1]]>icp[op[i]]:
+            elif isp[stack[-1]] > icp[op[i]]:
                 res.append(stack.pop())
             else:
                 stack.pop()
@@ -77,39 +102,47 @@ def calculate(res):
     return stack[0]
 
 
-def bsf_line_process_read(bsf_line, offset_byte, offset_bit, dat_block_io, dat_struct):
+def bsf_line_process_read(bsf_line, offset_byte, offset_bit, dat_block_io,
+                          dat_struct):
     op = bsf_line.split()
     if op[0].startswith('$'):
         dat_block_io.seek(offset_byte)
         if op[2].startswith('bit'):
-            bytes_quantity = -(-int(op[1])//8)
-            value_temp = int.from_bytes(dat_block_io.read(bytes_quantity), byteorder='little', signed=False)
+            bytes_quantity = -(-int(op[1]) // 8)
+            value_temp = int.from_bytes(dat_block_io.read(bytes_quantity),
+                                        byteorder='little',
+                                        signed=False)
             left_move = 8 * bytes_quantity - offset_bit - int(op[1])
             right_move = 8 * bytes_quantity - int(op[1])
             bytes_move_temp = b'\xFF' * bytes_quantity
-            bytes_move_temp = int.from_bytes(bytes_move_temp, byteorder='little', signed=False)
+            bytes_move_temp = int.from_bytes(bytes_move_temp,
+                                             byteorder='little',
+                                             signed=False)
             value_temp = (value_temp << left_move) & bytes_move_temp
             value_temp = (value_temp >> right_move) & bytes_move_temp
-            value_temp = value_temp.to_bytes(length=bytes_quantity, byteorder='little', signed=False)
+            value_temp = value_temp.to_bytes(length=bytes_quantity,
+                                             byteorder='little',
+                                             signed=False)
             offset_bit += int(op[1])
             if offset_bit >= 8:
-                offset_byte += offset_bit//8
+                offset_byte += offset_bit // 8
                 offset_bit = offset_bit % 8
-            dat_struct_temp = ssf_dat_struct(op[0], value_temp, 0, 0, 0)
-            dat_struct.append(dat_struct_temp)
+            dat_struct_temp = ssf_dat_struct(value_temp, 0, 0, 0)
+            dat_struct[op[0]] = dat_struct_temp
         elif op[2].startswith('byte'):
             value_temp = dat_block_io.read(int(op[1]))
             offset_byte += int(op[1])
-            dat_struct_temp = ssf_dat_struct(op[0], value_temp, 0, 0, 0)
-            dat_struct.append(dat_struct_temp)
+            dat_struct_temp = ssf_dat_struct(value_temp, 0, 0, 0)
+            dat_struct[op[0]] = dat_struct_temp
         elif op[3] == 'Offset':
-            dat_struct_temp = ssf_dat_struct(op[0].split(',')[0], 0, op[1].split(',')[0], op[2].split(',')[0], op[4])
-            dat_struct.append(dat_struct_temp)
+            dat_struct_temp = ssf_dat_struct(0, op[1].split(',')[0],
+                                             op[2].split(',')[0], op[4])
+            dat_struct[op[0].split(',')[0]] = dat_struct_temp
     elif op[0] == 'SKIP':
         if op[2].startswith('bit'):
             offset_bit += int(op[1])
             if offset_bit >= 8:
-                offset_byte += offset_bit//8
+                offset_byte += offset_bit // 8
                 offset_bit = offset_bit % 8
         elif op[2].startswith('byte'):
             offset_byte += int(op[1])
@@ -120,52 +153,60 @@ def bsf_line_process_read(bsf_line, offset_byte, offset_bit, dat_block_io, dat_s
     return offset_byte, offset_bit
 
 
-def bsf_line_process_write(bsf_line, offset_byte, offset_bit, dat_block_io, dat_struct):
+def bsf_line_process_write(bsf_line, offset_byte, offset_bit, dat_block_io,
+                           dat_struct):
     op = bsf_line.split()
     if op[0].startswith('$'):
         if op[2].startswith('bit'):
-            for x in dat_struct:
-                if x.name == op[0]:
-                    dat_block_io.seek(offset_byte)
-                    bytes_quantity = -(-int(op[1])//8)
-                    temp_for_clear_bits = b'\xFF' * bytes_quantity
-                    temp_for_clear_bits = int.from_bytes(temp_for_clear_bits, byteorder='little', signed=False)
-                    for i in range(0, int(op[1])):
-                        temp_for_clear_bits &= ~(1 << (offset_bit + i))
-                    temp_for_original_bytes = int.from_bytes(dat_block_io.read(bytes_quantity), byteorder='little', signed=False)
-                    temp_for_write = temp_for_clear_bits & temp_for_original_bytes
-                    temp_for_value = int.from_bytes(x.value, byteorder='little', signed=False)
-                    temp_for_value = temp_for_value << offset_bit
-                    temp_for_write |= temp_for_value
-                    temp_for_write = temp_for_write.to_bytes(bytes_quantity, byteorder='little', signed=False)
-                    dat_block_io.seek(offset_byte)
-                    dat_block_io.write(temp_for_write)
+            if dat_struct.get(op[0]):
+                dat_block_io.seek(offset_byte)
+                bytes_quantity = -(-int(op[1]) // 8)
+                temp_for_clear_bits = b'\xFF' * bytes_quantity
+                temp_for_clear_bits = int.from_bytes(temp_for_clear_bits,
+                                                     byteorder='little',
+                                                     signed=False)
+                for i in range(0, int(op[1])):
+                    temp_for_clear_bits &= ~(1 << (offset_bit + i))
+                temp_for_original_bytes = int.from_bytes(
+                    dat_block_io.read(bytes_quantity),
+                    byteorder='little',
+                    signed=False)
+                temp_for_write = temp_for_clear_bits & temp_for_original_bytes
+                temp_for_value = int.from_bytes(dat_struct[op[0]].value,
+                                                byteorder='little',
+                                                signed=False)
+                temp_for_value = temp_for_value << offset_bit
+                temp_for_write |= temp_for_value
+                temp_for_write = temp_for_write.to_bytes(bytes_quantity,
+                                                         byteorder='little',
+                                                         signed=False)
+                dat_block_io.seek(offset_byte)
+                dat_block_io.write(temp_for_write)
             offset_bit += int(op[1])
             if offset_bit >= 8:
-                offset_byte += offset_bit//8
+                offset_byte += offset_bit // 8
                 offset_bit = offset_bit % 8
         elif op[2].startswith('byte'):
-            for x in dat_struct:
-                if x.name == op[0]:
-                    dat_block_io.seek(offset_byte)
-                    dat_temp = b'\x00' * int(op[1])
-                    dat_block_io.write(dat_temp)
-                    dat_block_io.seek(offset_byte)
-                    dat_temp = x.value
-                    dat_block_io.write(dat_temp)
+            if dat_struct.get(op[0]):
+                dat_block_io.seek(offset_byte)
+                dat_temp = b'\x00' * int(op[1])
+                dat_block_io.write(dat_temp)
+                dat_block_io.seek(offset_byte)
+                dat_temp = dat_struct[op[0]].value
+                dat_block_io.write(dat_temp)
             offset_byte += int(op[1])
         elif op[3] == 'Offset':
-            for x in dat_struct:
-                if x.name == op[0].split(',')[0]:
-                    dat_block_io.seek(offset_byte)
-                    x.offset = op[4]
-                    x.ptr = op[1].split(',')[0]
-                    x.size = op[2].split(',')[0]
+            temp_key = op[0].split(',')[0]
+            if dat_struct.get(temp_key):
+                dat_block_io.seek(offset_byte)
+                dat_struct[temp_key].offset = op[4]
+                dat_struct[temp_key].ptr = op[1].split(',')[0]
+                dat_struct[temp_key].size = op[2].split(',')[0]
     elif op[0] == 'SKIP':
         if op[2].startswith('bit'):
             offset_bit += int(op[1])
             if offset_bit >= 8:
-                offset_byte += offset_bit//8
+                offset_byte += offset_bit // 8
                 offset_bit = offset_bit % 8
         elif op[2].startswith('byte'):
             offset_byte += int(op[1])
@@ -181,7 +222,7 @@ def save_ssf(dat_file, bsf_file, ssf_file):
     dat_raw = dat.read()
     dat.close()
     bsf = open(bsf_file, encoding='utf-8', errors='ignore', mode='r')
-    dat_struct = []
+    dat_struct = dict()
     bsf_lines_struct = []
     while True:
         current_line = bsf.readline()
@@ -207,15 +248,18 @@ def save_ssf(dat_file, bsf_file, ssf_file):
     offset_byte = 0
     offset_bit = 0
     for current_line in bsf_lines_struct:
-        if current_line.isspace() or current_line.split()[0] == ';' or current_line.split()[0] == 'Find':
+        if current_line.isspace() or current_line.split(
+        )[0] == ';' or current_line.split()[0] == 'Find':
             pass
-        elif current_line.split()[0] == 'Find_Ptr_Ref' and current_line.split()[1] == '"BIOS_DATA_BLOCK"':
+        elif current_line.split()[0] == 'Find_Ptr_Ref' and current_line.split(
+        )[1] == '"BIOS_DATA_BLOCK"':
             initial_offset = dat_raw.find(b'BIOS_DATA_BLOCK') + 16
             dat_io = BytesIO(dat_raw)
             dat_io.seek(initial_offset)
             dat_block_io = BytesIO(dat_io.read())
         else:
-            temp = bsf_line_process_read(current_line, offset_byte, offset_bit, dat_block_io, dat_struct)
+            temp = bsf_line_process_read(current_line, offset_byte, offset_bit,
+                                         dat_block_io, dat_struct)
             offset_byte = temp[0]
             offset_bit = temp[1]
     data_type = ['Combo', 'Table', 'EditNum']
@@ -251,27 +295,36 @@ def save_ssf(dat_file, bsf_file, ssf_file):
         elif op[0] in data_type:
             if op[0] == 'Combo' or op[0] == 'EditNum':
                 op2 = op[1].split(',')[0]
-                for x in dat_struct:
-                    if x.name == op2:
-                        ssf_raw.append(x.name + ' ' + x.value.hex(' ').upper() + '\n')
+                if dat_struct.get(op2):
+                    ssf_raw.append(op2 + ' ' +
+                                   dat_struct[op2].value.hex(' ').upper() +
+                                   '\n')
             elif op[0] == 'Table':
-                for x in dat_struct:
-                    if x.name == op[1]:
-                        if x.ptr != 0:
-                            for y in dat_struct:
-                                if y.name == x.ptr:
-                                    table_ptr = int.from_bytes(y.value, byteorder='little', signed=False) + int(x.offset) - 16
-                            for y in dat_struct:
-                                if y.name == x.size:
-                                    table_size = int.from_bytes(y.value, byteorder='little', signed=False)
-                            dat_block_io.seek(table_ptr)
-                            x.value = dat_block_io.read(table_size)
-                        ssf_raw.append('TABLE ' + x.name + ' ' + x.value.hex(' ').upper() + '\n')
+                if dat_struct.get(op[1]):
+                    if dat_struct[op[1]].ptr != 0:
+                        if dat_struct.get(dat_struct[op[1]].ptr):
+                            table_ptr = int.from_bytes(
+                                dat_struct[dat_struct[op[1]].ptr].value,
+                                byteorder='little',
+                                signed=False) + int(
+                                    dat_struct[op[1]].offset) - 16
+                        if dat_struct.get(dat_struct[op[1]].size):
+                            table_size = int.from_bytes(
+                                dat_struct[dat_struct[op[1]].size].value,
+                                byteorder='little',
+                                signed=False)
+                        dat_block_io.seek(table_ptr)
+                        dat_struct[op[1]].value = dat_block_io.read(table_size)
+                    ssf_raw.append('TABLE ' + op[1] + ' ' +
+                                   dat_struct[op[1]].value.hex(' ').upper() +
+                                   '\n')
         elif op[0] in str_type:
             op2 = op[1].split(',')[0]
-            for x in dat_struct:
-                if x.name == op2:
-                    ssf_raw.append('STRING ' + x.name + ' ' + x.value.replace(b'\x0D\x0A', b'\\r\\n').decode().strip(b'\x00'.decode()) + '\n')
+            if dat_struct.get(op2):
+                ssf_raw.append(
+                    'STRING ' + op2 + ' ' +
+                    dat_struct[op2].value.replace(b'\x0D\x0A', b'\\r\\n').
+                    decode().strip(b'\x00'.decode()) + '\n')
     ssf = open(ssf_file, encoding='utf-8', mode='w', newline='\r\n')
     ssf.writelines(ssf_raw)
     ssf.close()
@@ -293,26 +346,27 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
         else:
             ssf_lines.append(current_line)
     ssf.close()
-    dat_struct = []
+    dat_struct = dict()
     for current_line in ssf_lines:
         op = current_line.split(' ', 1)
         if op[0] == 'STRING':
             op = op[1].split(' ', 1)
-            dat_temp = op[1].split('\n', 1)[0].encode('ASCII').replace(b'\\r\\n', b'\r\n')
-            dat_struct_temp = ssf_dat_struct(op[0], dat_temp, 0, 0, 0)
-            dat_struct.append(dat_struct_temp)
+            dat_temp = op[1].split('\n', 1)[0].encode('ASCII').replace(
+                b'\\r\\n', b'\r\n')
+            dat_struct_temp = ssf_dat_struct(dat_temp, 0, 0, 0)
+            dat_struct[op[0]] = dat_struct_temp
         elif op[0] == 'TABLE':
             op = op[1].split(' ', 1)
             dat_temp = bytes.fromhex(op[1].strip())
-            dat_struct_temp = ssf_dat_struct(op[0], dat_temp, 0, 0, 0)
-            dat_struct.append(dat_struct_temp)
+            dat_struct_temp = ssf_dat_struct(dat_temp, 0, 0, 0)
+            dat_struct[op[0]] = dat_struct_temp
         elif op[0].startswith('$'):
             temp = op[1].strip()
             if len(temp) == 1:
                 temp = '0' + temp
             dat_temp = bytes.fromhex(temp)
-            dat_struct_temp = ssf_dat_struct(op[0], dat_temp, 0, 0, 0)
-            dat_struct.append(dat_struct_temp)
+            dat_struct_temp = ssf_dat_struct(dat_temp, 0, 0, 0)
+            dat_struct[op[0]] = dat_struct_temp
     bsf = open(bsf_file, encoding='utf-8', errors='ignore', mode='r')
     bsf_lines_struct = []
     while True:
@@ -339,45 +393,57 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
     offset_byte = 0
     offset_bit = 0
     for current_line in bsf_lines_struct:
-        if current_line.isspace() or current_line.split()[0] == ';' or current_line.split()[0] == 'Find':
+        if current_line.isspace() or current_line.split(
+        )[0] == ';' or current_line.split()[0] == 'Find':
             pass
-        elif current_line.split()[0] == 'Find_Ptr_Ref' and current_line.split()[1] == '"BIOS_DATA_BLOCK"':
+        elif current_line.split()[0] == 'Find_Ptr_Ref' and current_line.split(
+        )[1] == '"BIOS_DATA_BLOCK"':
             initial_offset = dat_raw.find(b'BIOS_DATA_BLOCK') + 16
             dat_io = BytesIO(dat_raw)
             dat_io.seek(initial_offset)
             dat_block_io = BytesIO(dat_io.read())
-        elif '_Ptr' in current_line.split()[0] or '_Size' in current_line.split()[0]:
-            temp = bsf_line_process_read(current_line, offset_byte, offset_bit, dat_block_io, dat_struct)
+        elif '_Ptr' in current_line.split(
+        )[0] or '_Size' in current_line.split()[0]:
+            temp = bsf_line_process_read(current_line, offset_byte, offset_bit,
+                                         dat_block_io, dat_struct)
             offset_byte = temp[0]
             offset_bit = temp[1]
         else:
-            temp = bsf_line_process_write(current_line, offset_byte, offset_bit, dat_block_io, dat_struct)
+            temp = bsf_line_process_write(current_line, offset_byte,
+                                          offset_bit, dat_block_io, dat_struct)
             offset_byte = temp[0]
             offset_bit = temp[1]
     for current_line in bsf_lines_page:
-        if current_line.startswith(';') or current_line.isspace() or current_line.startswith('$'):
+        if current_line.startswith(
+                ';') or current_line.isspace() or current_line.startswith('$'):
             continue
         op = current_line.split()
         if op[0] == 'Table':
-            for x in dat_struct:
-                if x.name == op[1]:
-                    if x.ptr != 0:
-                        table_ptr = ''
-                        table_size = ''
-                        for y in dat_struct:
-                            if y.name == x.ptr:
-                                table_ptr = int.from_bytes(y.value, byteorder='little', signed=False) + int(x.offset) - 16
-                        for y in dat_struct:
-                            if y.name == x.size:
-                                table_size = int.from_bytes(y.value, byteorder='little', signed=False)
-                        if table_ptr == '' and table_size == '':
-                            pass
-                        else:
-                            dat_block_io.seek(table_ptr)
-                            dat_temp = b'\x00' * table_size
-                            dat_block_io.write(dat_temp)
-                            dat_block_io.seek(table_ptr)
-                            dat_block_io.write(x.value)
+            temp_key = op[1]
+            if dat_struct.get(temp_key):
+                if dat_struct[temp_key].ptr != 0:
+                    table_ptr = ''
+                    table_size = ''
+                    ptr_key = dat_struct[temp_key].ptr
+                    size_key = dat_struct[temp_key].size
+                    if dat_struct.get(ptr_key):
+                        table_ptr = int.from_bytes(
+                            dat_struct[ptr_key].value,
+                            byteorder='little',
+                            signed=False) + int(
+                                dat_struct[temp_key].offset) - 16
+                    if dat_struct.get(size_key):
+                        table_size = int.from_bytes(dat_struct[size_key].value,
+                                                    byteorder='little',
+                                                    signed=False)
+                    if table_ptr == '' and table_size == '':
+                        pass
+                    else:
+                        dat_block_io.seek(table_ptr)
+                        dat_temp = b'\x00' * table_size
+                        dat_block_io.write(dat_temp)
+                        dat_block_io.seek(table_ptr)
+                        dat_block_io.write(dat_struct[temp_key].value)
     dat_io.seek(0)
     dat_block_io.seek(0)
     dat_raw = dat_io.read(initial_offset) + dat_block_io.read()
@@ -408,13 +474,31 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='CLI substitution of Intel BMP, written in Python.')
-    parser.add_argument('dat_file', metavar='DAT', type=str, help='binary file path')
-    parser.add_argument('bsf_file', metavar='BSF', type=str, help='script file path')
-    parser.add_argument('ssf_file', metavar='SSF', type=str, help='settings file path')
-    parser.add_argument('new_dat_file', metavar='nDAT', type=str, nargs='?', help='new binary file path')
-    parser.add_argument('-s', action='store_true', help='Apply settings to binary file.')
-    parser.add_argument('-b', action='store_true', help='Save settings from binary file.')
+    parser = argparse.ArgumentParser(
+        description='CLI substitution of Intel BMP, written in Python.')
+    parser.add_argument('dat_file',
+                        metavar='DAT',
+                        type=str,
+                        help='binary file path')
+    parser.add_argument('bsf_file',
+                        metavar='BSF',
+                        type=str,
+                        help='script file path')
+    parser.add_argument('ssf_file',
+                        metavar='SSF',
+                        type=str,
+                        help='settings file path')
+    parser.add_argument('new_dat_file',
+                        metavar='nDAT',
+                        type=str,
+                        nargs='?',
+                        help='new binary file path')
+    parser.add_argument('-s',
+                        action='store_true',
+                        help='Apply settings to binary file.')
+    parser.add_argument('-b',
+                        action='store_true',
+                        help='Save settings from binary file.')
 
     args = parser.parse_args()
 
