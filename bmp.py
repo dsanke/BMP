@@ -1,5 +1,5 @@
 ﻿from pathlib import Path
-from io import BytesIO
+from io import BytesIO, StringIO
 import argparse
 
 
@@ -217,34 +217,29 @@ def bsf_line_process_write(bsf_line, offset_byte, offset_bit, dat_block_io,
     return offset_byte, offset_bit
 
 
-def save_ssf(dat_file, bsf_file, ssf_file):
-    dat = open(dat_file, 'rb')
-    dat_raw = dat.read()
-    dat.close()
-    bsf = open(bsf_file, encoding='utf-8', errors='ignore', mode='r')
+def save_ssf(dat_raw, bsf_io):
     dat_struct = dict()
     bsf_lines_struct = []
     while True:
-        current_line = bsf.readline()
+        current_line = bsf_io.readline()
         if current_line.startswith('StructDef') is not True:
             pass
         else:
-            current_line = bsf.readline()
+            current_line = bsf_io.readline()
             break
     while True:
         if current_line.startswith('EndStruct'):
             break
         else:
             bsf_lines_struct.append(current_line)
-        current_line = bsf.readline()
+        current_line = bsf_io.readline()
     bsf_lines_page = []
     while True:
         if current_line == '':
             break
         else:
             bsf_lines_page.append(current_line)
-        current_line = bsf.readline()
-    bsf.close()
+        current_line = bsf_io.readline()
     offset_byte = 0
     offset_bit = 0
     for current_line in bsf_lines_struct:
@@ -264,7 +259,7 @@ def save_ssf(dat_file, bsf_file, ssf_file):
             offset_bit = temp[1]
     data_type = ['Combo', 'Table', 'EditNum']
     str_type = ['MultiText', 'EditText']
-    ssf_raw = []
+    ssf_lines_raw = []
     no_skip = 1
     for current_line in bsf_lines_page:
         if current_line.isspace() or current_line.split()[0] == ';':
@@ -291,12 +286,12 @@ def save_ssf(dat_file, bsf_file, ssf_file):
         elif no_skip == 0:
             pass
         elif op[0] == 'Page':
-            ssf_raw.append('\n' + 'PAGE ' + current_line.split('"')[1] + '\n')
+            ssf_lines_raw.append('\n' + 'PAGE ' + current_line.split('"')[1] + '\n')
         elif op[0] in data_type:
             if op[0] == 'Combo' or op[0] == 'EditNum':
                 op2 = op[1].split(',')[0]
                 if dat_struct.get(op2):
-                    ssf_raw.append(op2 + ' ' +
+                    ssf_lines_raw.append(op2 + ' ' +
                                    dat_struct[op2].value.hex(' ').upper() +
                                    '\n')
             elif op[0] == 'Table':
@@ -315,37 +310,29 @@ def save_ssf(dat_file, bsf_file, ssf_file):
                                 signed=False)
                         dat_block_io.seek(table_ptr)
                         dat_struct[op[1]].value = dat_block_io.read(table_size)
-                    ssf_raw.append('TABLE ' + op[1] + ' ' +
+                    ssf_lines_raw.append('TABLE ' + op[1] + ' ' +
                                    dat_struct[op[1]].value.hex(' ').upper() +
                                    '\n')
         elif op[0] in str_type:
             op2 = op[1].split(',')[0]
             if dat_struct.get(op2):
-                ssf_raw.append(
+                ssf_lines_raw.append(
                     'STRING ' + op2 + ' ' +
                     dat_struct[op2].value.replace(b'\x0D\x0A', b'\\r\\n').
                     decode().strip(b'\x00'.decode()) + '\n')
-    ssf = open(ssf_file, encoding='utf-8', mode='w', newline='\r\n')
-    ssf.writelines(ssf_raw)
-    ssf.close()
-    return 0
+    return ssf_lines_raw
 
 
-def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
-    dat = open(dat_file, 'rb')
-    dat_raw = dat.read()
-    dat.close()
-    ssf = open(ssf_file, encoding='utf-8', errors='ignore', mode='r')
+def apply_ssf(dat_raw, bsf_io, ssf_io):
     ssf_lines = []
     while True:
-        current_line = ssf.readline()
+        current_line = ssf_io.readline()
         if not current_line:
             break
         elif current_line.startswith('PAGE') or current_line.isspace():
             pass
         else:
             ssf_lines.append(current_line)
-    ssf.close()
     dat_struct = dict()
     for current_line in ssf_lines:
         op = current_line.split(' ', 1)
@@ -367,29 +354,27 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
             dat_temp = bytes.fromhex(temp)
             dat_struct_temp = ssf_dat_struct(dat_temp, 0, 0, 0)
             dat_struct[op[0]] = dat_struct_temp
-    bsf = open(bsf_file, encoding='utf-8', errors='ignore', mode='r')
     bsf_lines_struct = []
     while True:
-        current_line = bsf.readline()
+        current_line = bsf_io.readline()
         if current_line.startswith('StructDef') is not True:
             pass
         else:
-            current_line = bsf.readline()
+            current_line = bsf_io.readline()
             break
     while True:
         if current_line.startswith('EndStruct'):
             break
         else:
             bsf_lines_struct.append(current_line)
-        current_line = bsf.readline()
+        current_line = bsf_io.readline()
     bsf_lines_page = []
     while True:
         if current_line == '':
             break
         else:
             bsf_lines_page.append(current_line)
-        current_line = bsf.readline()
-    bsf.close()
+        current_line = bsf_io.readline()
     offset_byte = 0
     offset_bit = 0
     for current_line in bsf_lines_struct:
@@ -467,10 +452,7 @@ def apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file):
     dat_io.write(checksum.to_bytes(1, byteorder='little'))
     dat_io.seek(0)
     dat_raw = dat_io.read()
-    dat = open(new_dat_file, mode='wb')
-    dat.write(dat_raw)
-    dat.close()
-    return 0
+    return dat_raw
 
 
 def main():
@@ -514,25 +496,33 @@ def main():
 
     if not dat_file.is_file():
         parser.error('invalid dat file.')
-        return -1
 
     if not bsf_file.is_file():
         parser.error('invalid bsf file.')
-        return -1
 
     if args.s:
         if not ssf_file.is_file():
             parser.error('invalid ssf file.')
-            return -1
+        with open(dat_file, 'rb') as f:
+            dat_raw = f.read()
+        with open(bsf_file, encoding='utf-8', errors='ignore', mode='r') as f:
+            bsf_io = StringIO(f.read())
+        with open(ssf_file, encoding='utf-8', errors='ignore', mode='r') as f:
+            ssf_io = StringIO(f.read())
+        dat_raw = apply_ssf(dat_raw, bsf_io, ssf_io)
         if args.new_dat_file:
-            new_dat_file = Path.cwd().joinpath(args.new_dat_file)
-        else:
-            new_dat_file = dat_file
+            dat_file = Path.cwd().joinpath(args.new_dat_file)
+        with open(dat_file, 'wb') as f:
+            f.write(dat_raw)
 
-    if args.s:
-        return apply_ssf(dat_file, bsf_file, ssf_file, new_dat_file)
     elif args.b:
-        return save_ssf(dat_file, bsf_file, ssf_file)
+        with open(dat_file, 'rb') as f:
+            dat_raw = f.read()
+        with open(bsf_file, encoding='utf-8', errors='ignore', mode='r') as f:
+            bsf_io = StringIO(f.read())
+        ssf_raw = save_ssf(dat_file, bsf_file, ssf_file)
+        with open(ssf_file, encoding='utf-8', mode='w', newline='\r\n') as f:
+            f.writelines(ssf_raw)
 
 
 if __name__ == "__main__":
