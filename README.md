@@ -1,1 +1,1 @@
-CLI substitution of Intel BMP, written in Python.
+CLI substitution of Intel BMP(Binary Modification Program), written in Python.
