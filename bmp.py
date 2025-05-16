@@ -504,25 +504,29 @@ def main():
     if args.s:
         if not ssf_file.is_file():
             parser.error('invalid ssf file.')
-        with open(dat_file, 'rb') as f:
+        with open(str(dat_file), 'rb') as f:
             dat_raw = f.read()
-        with open(bsf_file, encoding='utf-8', errors='ignore', mode='r') as f:
+        with open(str(bsf_file), encoding='utf-8', errors='ignore',
+                  mode='r') as f:
             bsf_io = StringIO(f.read())
-        with open(ssf_file, encoding='utf-8', errors='ignore', mode='r') as f:
+        with open(str(ssf_file), encoding='utf-8', errors='ignore',
+                  mode='r') as f:
             ssf_io = StringIO(f.read())
         dat_raw = apply_ssf(dat_raw, bsf_io, ssf_io)
         if args.new_dat_file:
             dat_file = Path.cwd().joinpath(args.new_dat_file)
-        with open(dat_file, 'wb') as f:
+        with open(str(dat_file), 'wb') as f:
             f.write(dat_raw)
 
     elif args.b:
-        with open(dat_file, 'rb') as f:
+        with open(str(dat_file), 'rb') as f:
             dat_raw = f.read()
-        with open(bsf_file, encoding='utf-8', errors='ignore', mode='r') as f:
+        with open(str(bsf_file), encoding='utf-8', errors='ignore',
+                  mode='r') as f:
             bsf_io = StringIO(f.read())
         ssf_raw = save_ssf(dat_raw, bsf_io)
-        with open(ssf_file, encoding='utf-8', mode='w', newline='\r\n') as f:
+        with open(str(ssf_file), encoding='utf-8', mode='w',
+                  newline='\r\n') as f:
             f.writelines(ssf_raw)
 
 
