@@ -286,14 +286,15 @@ def save_ssf(dat_raw, bsf_io):
         elif no_skip == 0:
             pass
         elif op[0] == 'Page':
-            ssf_lines_raw.append('\n' + 'PAGE ' + current_line.split('"')[1] + '\n')
+            ssf_lines_raw.append('\n' + 'PAGE ' + current_line.split('"')[1] +
+                                 '\n')
         elif op[0] in data_type:
             if op[0] == 'Combo' or op[0] == 'EditNum':
                 op2 = op[1].split(',')[0]
                 if dat_struct.get(op2):
-                    ssf_lines_raw.append(op2 + ' ' +
-                                   dat_struct[op2].value.hex(' ').upper() +
-                                   '\n')
+                    ssf_lines_raw.append(op2 + ' ' + ' '.join(
+                        '{:02X}'.format(b)
+                        for b in dat_struct[op2].value) + '\n')
             elif op[0] == 'Table':
                 if dat_struct.get(op[1]):
                     if dat_struct[op[1]].ptr != 0:
@@ -310,9 +311,9 @@ def save_ssf(dat_raw, bsf_io):
                                 signed=False)
                         dat_block_io.seek(table_ptr)
                         dat_struct[op[1]].value = dat_block_io.read(table_size)
-                    ssf_lines_raw.append('TABLE ' + op[1] + ' ' +
-                                   dat_struct[op[1]].value.hex(' ').upper() +
-                                   '\n')
+                    ssf_lines_raw.append('TABLE ' + op[1] + ' ' + ' '.join(
+                        '{:02X}'.format(b)
+                        for b in dat_struct[op[1]].value) + '\n')
         elif op[0] in str_type:
             op2 = op[1].split(',')[0]
             if dat_struct.get(op2):
