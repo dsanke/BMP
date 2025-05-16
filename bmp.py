@@ -520,7 +520,7 @@ def main():
             dat_raw = f.read()
         with open(bsf_file, encoding='utf-8', errors='ignore', mode='r') as f:
             bsf_io = StringIO(f.read())
-        ssf_raw = save_ssf(dat_file, bsf_file, ssf_file)
+        ssf_raw = save_ssf(dat_raw, bsf_io)
         with open(ssf_file, encoding='utf-8', mode='w', newline='\r\n') as f:
             f.writelines(ssf_raw)
 
