@@ -1,6 +1,7 @@
 ﻿from pathlib import Path
 from io import BytesIO, StringIO
 import argparse
+import sys
 
 
 class ssf_dat_struct:
@@ -460,40 +461,57 @@ def main():
     parser = argparse.ArgumentParser(
         description='CLI substitution of Intel BMP, written in Python.')
     parser.add_argument('dat_file',
-                        metavar='DAT',
                         type=str,
-                        help='binary file path')
+                        help='path to the binary (.dat) file')
     parser.add_argument('bsf_file',
-                        metavar='BSF',
                         type=str,
-                        help='script file path')
+                        help='path to the script (.bsf) file')
     parser.add_argument('ssf_file',
-                        metavar='SSF',
-                        type=str,
-                        help='settings file path')
-    parser.add_argument('new_dat_file',
-                        metavar='nDAT',
                         type=str,
                         nargs='?',
-                        help='new binary file path')
+                        help='path to the settings (.ssf) file')
+    parser.add_argument(
+        'new_dat_file',
+        type=str,
+        nargs='?',
+        help=
+        'optional output path for the modified binary (modifies original if omitted)'
+    )
     parser.add_argument('-s',
                         action='store_true',
-                        help='Apply settings to binary file.')
-    parser.add_argument('-b',
-                        action='store_true',
-                        help='Save settings from binary file.')
+                        help='apply settings from SSF to the binary file')
+    parser.add_argument(
+        '-b',
+        action='store_true',
+        help='extract settings from the binary into an SSF file')
 
     args = parser.parse_args()
 
-    if not (args.s or args.b):
-        parser.error('No action requested, add -s or -b')
+    script_stem = Path(sys.argv[0]).stem.lower()
 
-    if args.s and args.b:
-        parser.error('Too many actions requested, use -s or -b only')
+    if script_stem == "avsr":
+        dat_file = Path.cwd().joinpath(args.dat_file.lstrip('\\'))
+        bsf_file = Path.cwd().joinpath(args.bsf_file.lstrip('\\'))
+        ssf_file = Path.cwd().joinpath('data', 'tmp', 'settings.ssf')
+        args.b = True
+        args.s = False
+    elif script_stem == "ssf":
+        dat_file = Path.cwd().joinpath(args.dat_file)
+        bsf_file = Path.cwd().joinpath('res', 'vbios', args.bsf_file + '.bsf')
+        ssf_file = Path.cwd().joinpath(args.dat_file).with_suffix('.ssf')
+        args.b = True
+        args.s = False
+    else:
+        dat_file = Path.cwd().joinpath(args.dat_file)
+        bsf_file = Path.cwd().joinpath(args.bsf_file)
+        if args.ssf_file:
+            ssf_file = Path.cwd().joinpath(args.ssf_file)
+        else:
+            ssf_file = dat_file.with_suffix('.ssf')
 
-    dat_file = Path.cwd().joinpath(args.dat_file)
-    bsf_file = Path.cwd().joinpath(args.bsf_file)
-    ssf_file = Path.cwd().joinpath(args.ssf_file)
+    if not (args.s ^ args.b):
+        parser.error(
+            "You must specify exactly one of -s (apply) or -b (extract)")
 
     if not dat_file.is_file():
         parser.error('invalid dat file.')
@@ -501,9 +519,10 @@ def main():
     if not bsf_file.is_file():
         parser.error('invalid bsf file.')
 
+    if args.s and not ssf_file.is_file():
+        parser.error('invalid ssf file.')
+
     if args.s:
-        if not ssf_file.is_file():
-            parser.error('invalid ssf file.')
         with open(str(dat_file), 'rb') as f:
             dat_raw = f.read()
         with open(str(bsf_file), encoding='utf-8', errors='ignore',
@@ -513,9 +532,9 @@ def main():
                   mode='r') as f:
             ssf_io = StringIO(f.read())
         dat_raw = apply_ssf(dat_raw, bsf_io, ssf_io)
-        if args.new_dat_file:
-            dat_file = Path.cwd().joinpath(args.new_dat_file)
-        with open(str(dat_file), 'wb') as f:
+        output_file = Path.cwd().joinpath(
+            args.new_dat_file) if args.new_dat_file else dat_file
+        with open(str(output_file), 'wb') as f:
             f.write(dat_raw)
 
     elif args.b:
