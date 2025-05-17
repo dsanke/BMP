@@ -498,7 +498,7 @@ def main():
     elif script_stem == "ssf":
         dat_file = Path.cwd().joinpath(args.dat_file)
         bsf_file = Path.cwd().joinpath('res', 'vbios', args.bsf_file + '.bsf')
-        ssf_file = Path.cwd().joinpath(args.dat_file).with_suffix('.ssf')
+        ssf_file = Path.cwd().joinpath(args.dat_file + '.ssf')
         args.b = True
         args.s = False
     else:
