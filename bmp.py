@@ -51,8 +51,11 @@ def infix2postfix(op, dat_struct):
                                             signed=False)
                 res.append(temp_value)
             i += 1
-        elif op[i].isdigit() or op[i].startswith('0x'):
-            res.append(int(op[i]))
+        elif op[i].isdigit():
+            res.append(int(op[i], 10))
+            i += 1
+        elif op[i].startswith('0x'):
+            res.append(int(op[i], 16))
             i += 1
         else:
             if isp[stack[-1]] < icp[op[i]]:
